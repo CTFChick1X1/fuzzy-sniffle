@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Linq;
+using System.Threading;
 
 
 /// Represents a Bible verse with a reference and text.
@@ -17,10 +18,7 @@ class Verse
         Text = text;
     }
 }
-
-
 /// Manages a collection of verses, including adding, displaying, searching, saving, and loading from a file.
-
 class VerseCollection
 {
     private readonly List<Verse> verses = new List<Verse>();
@@ -34,9 +32,8 @@ class VerseCollection
         SaveToFile();
     }
 
-
+    
     /// Displays all verses in the collection with pagination and color formatting.
-
     public void DisplayVerses()
     {
         if (verses.Count == 0)
@@ -77,8 +74,8 @@ class VerseCollection
         }
     }
 
+    
     /// Searches for verses by reference or keyword.
-
     public void SearchVerse(string query)
     {
         var results = verses.Where(v => v.Reference.Contains(query, StringComparison.OrdinalIgnoreCase) ||
@@ -102,17 +99,17 @@ class VerseCollection
         }
     }
 
-
+  
     /// Saves the verse collection to a JSON file.
-
     private void SaveToFile()
     {
         string json = JsonSerializer.Serialize(verses, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(FilePath, json);
     }
 
+   
     /// Loads verses from a JSON file if it exists.
-
+    
     public void LoadFromFile()
     {
         if (File.Exists(FilePath))
@@ -132,18 +129,53 @@ class VerseCollection
     public List<Verse> GetVerses() => new List<Verse>(verses);
 }
 
-/// The main program entry point, providing a menu-driven interface for the user.
 
+/// Handles the memorization process.
+class MemorizationSession
+{
+    public void Start(List<Verse> verses)
+    {
+        foreach (var verse in verses)
+        {
+            Console.Clear();
+            Console.WriteLine($"Memorizing: {verse.Reference}\n");
+            string hiddenText = HideWords(verse.Text);
+            Console.WriteLine(hiddenText);
+            
+            Console.WriteLine("Press Enter to reveal the full verse...");
+            Console.ReadLine();
+            Console.WriteLine(verse.Text + "\n");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+        }
+    }
+
+    private string HideWords(string text)
+    {
+        string[] words = text.Split(' ');
+        Random random = new Random();
+        for (int i = 0; i < words.Length / 2; i++)
+        {
+            int index = random.Next(words.Length);
+            words[index] = new string('_', words[index].Length);
+        }
+        return string.Join(" ", words);
+    }
+}
+
+
+/// The main program entry point, providing a menu-driven interface for the user.
 class Program
 {
     static void Main()
     {
         VerseCollection collection = new VerseCollection();
         collection.LoadFromFile();
+        MemorizationSession memorizationSession = new MemorizationSession();
         
         while (true)
         {
-            Console.WriteLine("1. Add Verse\n2. Display Verses\n3. Search Verse\n4. Exit");
+            Console.WriteLine("1. Add Verse\n2. Display Verses\n3. Search Verse\n4. Start Memorization\n5. Exit");
             Console.Write("Enter Your Choice: ");
             string choice = Console.ReadLine();
             
@@ -165,6 +197,9 @@ class Program
                     collection.SearchVerse(query);
                     break;
                 case "4":
+                    memorizationSession.Start(collection.GetVerses());
+                    break;
+                case "5":
                     return;
             }
         }
