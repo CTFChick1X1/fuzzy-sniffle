@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
 using System.Linq;
+using System.Text.Json;
 
-/// Represents a Bible reference (e.g., "John 3:16" or "Proverbs 3:5-6").
 class Reference
 {
     public string Book { get; set; }
@@ -13,67 +12,80 @@ class Reference
     public int? EndChapter { get; set; }
     public int? EndVerse { get; set; }
 
-    // Parameterless constructor for JSON serialization
-    public Reference() {}
+    public Reference() { }
 
     public Reference(string reference)
     {
-        string[] parts = reference.Split(' ');
+        if (string.IsNullOrWhiteSpace(reference) || !reference.Contains(':'))
+            throw new ArgumentException("Invalid reference format. Use 'Book Chapter:Verse' or 'Book Chapter:Verse-Verse'.");
 
-        // Book name may contain multiple words, extract the last part as the verse reference
+        string[] parts = reference.Split(' ');
+        if (parts.Length < 2)
+            throw new ArgumentException("Invalid reference format. Ensure the book name and chapter:verse are included.");
+
         string bookName = string.Join(" ", parts.Take(parts.Length - 1));
         string versePart = parts.Last();
+        string[] numbers = versePart.Split('-');
+
+        if (!numbers[0].Contains(':'))
+            throw new ArgumentException("Invalid reference format. Ensure chapter and verse are separated by a colon.");
+
+        string[] start = numbers[0].Split(':');
+
+        if (!int.TryParse(start[0], out int startChap) || !int.TryParse(start[1], out int startVers))
+            throw new ArgumentException("Chapter and verse must be valid numbers.");
 
         Book = bookName;
-        string[] numbers = versePart.Split('-');
-        string[] start = numbers[0].Split(':');
-        StartChapter = int.Parse(start[0]);
-        StartVerse = int.Parse(start[1]);
+        StartChapter = startChap;
+        StartVerse = startVers;
 
         if (numbers.Length > 1)
         {
             string[] end = numbers[1].Split(':');
-            EndChapter = end.Length > 1 ? int.Parse(end[0]) : StartChapter;
-            EndVerse = int.Parse(end.Length > 1 ? end[1] : numbers[1]);
+            if (end.Length > 1)
+            {
+                if (!int.TryParse(end[0], out int endChap) || !int.TryParse(end[1], out int endVers))
+                    throw new ArgumentException("Invalid end chapter or verse format.");
+
+                EndChapter = endChap;
+                EndVerse = endVers;
+            }
+            else
+            {
+                if (!int.TryParse(numbers[1], out int endVers))
+                    throw new ArgumentException("Invalid end verse format.");
+
+                EndChapter = StartChapter;
+                EndVerse = endVers;
+            }
         }
     }
 
     public override string ToString()
     {
-        if (EndVerse.HasValue)
-            return $"{Book} {StartChapter}:{StartVerse}-{EndVerse}";
-        return $"{Book} {StartChapter}:{StartVerse}";
+        return EndVerse.HasValue ? $"{Book} {StartChapter}:{StartVerse}-{EndVerse}" : $"{Book} {StartChapter}:{StartVerse}";
     }
 }
 
-/// Represents a single word in a verse, allowing hiding functionality.
 class Word
 {
     public string Text { get; set; }
     public bool IsHidden { get; set; }
 
-    // Parameterless constructor for JSON serialization
-    public Word() {}
-
-    public Word(string text)
-    {
-        Text = text;
-        IsHidden = false;
-    }
-
+    public Word() { }
+    public Word(string text) { Text = text; IsHidden = false; }
     public void Hide() => IsHidden = true;
+    public void Unhide() => IsHidden = false;
     public string GetDisplayText() => IsHidden ? new string('_', Text.Length) : Text;
 }
 
-/// Represents a verse with a reference and its words.
 class Verse
 {
     public Reference Reference { get; set; }
     public List<Word> Words { get; set; }
+    private static Random random = new Random();
 
-    // Parameterless constructor for JSON serialization
-    public Verse() {}
-
+    public Verse() { }
     public Verse(string reference, string text)
     {
         Reference = new Reference(reference);
@@ -82,26 +94,48 @@ class Verse
 
     public void HideRandomWords(int count)
     {
-        Random random = new Random();
-        List<Word> visibleWords = Words.Where(w => !w.IsHidden).ToList();
+        var visibleWords = Words.Where(w => !w.IsHidden).ToList();
+        var hiddenIndices = new HashSet<int>();
 
-        for (int i = 0; i < count && visibleWords.Count > 0; i++)
+        while (hiddenIndices.Count < count && hiddenIndices.Count < visibleWords.Count)
         {
-            int index = random.Next(visibleWords.Count);
+            int index;
+            do { index = random.Next(visibleWords.Count); } while (hiddenIndices.Contains(index));
+
             visibleWords[index].Hide();
-            visibleWords.RemoveAt(index);
+            hiddenIndices.Add(index);
         }
     }
 
+    public void UnhideAllWords()
+    {
+        foreach (var word in Words) word.Unhide();
+    }
+
     public bool AllWordsHidden() => Words.All(w => w.IsHidden);
-    public string GetDisplayText() => Reference + " " + string.Join(" ", Words.Select(w => w.GetDisplayText()));
+
+    public string GetDisplayText()
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write(Reference + " ");
+        Console.ResetColor();
+
+        foreach (var word in Words)
+        {
+            Console.ForegroundColor = word.IsHidden ? ConsoleColor.DarkGray : ConsoleColor.Green;
+            Console.Write(word.GetDisplayText() + " ");
+            Console.ResetColor();
+        }
+
+        return "";
+    }
 }
 
-/// Manages a collection of verses.
 class VerseCollection
 {
     private List<Verse> verses = new List<Verse>();
     private const string FilePath = "verses.json";
+    private static Random random = new Random();
 
     public void AddVerse(string reference, string text)
     {
@@ -113,26 +147,25 @@ class VerseCollection
     {
         foreach (var verse in verses)
         {
-            Console.WriteLine(verse.GetDisplayText());
+            verse.GetDisplayText();
+            Console.WriteLine();
         }
     }
 
     public void LoadFromFile()
     {
-        if (File.Exists(FilePath))
+        if (!File.Exists(FilePath)) return;
+        try
         {
             string json = File.ReadAllText(FilePath);
-            try
-            {
-                var loadedVerses = JsonSerializer.Deserialize<List<Verse>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                if (loadedVerses != null)
-                    verses = loadedVerses;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading verses: {ex.Message}");
-            }
+            verses = JsonSerializer.Deserialize<List<Verse>>(json) ?? new List<Verse>();
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Error loading verses: {ex.Message}");
+            Console.ResetColor();
+            verses = new List<Verse>();
         }
     }
 
@@ -142,33 +175,58 @@ class VerseCollection
         File.WriteAllText(FilePath, json);
     }
 
-    public List<Verse> GetVerses() => verses;
+    public Verse GetRandomVerse()
+    {
+        return verses.Count > 0 ? verses[random.Next(verses.Count)] : null;
+    }
 }
 
-/// Handles the memorization process.
 class MemorizationSession
 {
     public void Start(Verse verse)
     {
+        if (verse == null)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("No verses available for memorization.");
+            Console.ResetColor();
+            Console.ReadLine();
+            return;
+        }
+
+        Console.Write("\nHow many words would you like to hide per round? ");
+        if (!int.TryParse(Console.ReadLine(), out int wordsToHide) || wordsToHide < 1)
+        {
+            wordsToHide = 2;
+        }
+
         while (!verse.AllWordsHidden())
         {
             Console.Clear();
-            Console.WriteLine(verse.GetDisplayText() + "\n");
-            Console.WriteLine("Press Enter to hide more words or type 'quit' to exit...");
+            Console.WriteLine();
+            verse.GetDisplayText();
+            Console.WriteLine("\n");
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("Press Enter to hide more words or type 'unhide' to reveal them...");
+            Console.ResetColor();
+
             string input = Console.ReadLine();
-            if (input.ToLower() == "quit") break;
-            verse.HideRandomWords(2);
+
+            if (input.ToLower() == "unhide") verse.UnhideAllWords();
+            else verse.HideRandomWords(wordsToHide);
         }
 
         Console.Clear();
+        Console.ForegroundColor = ConsoleColor.Magenta;
         Console.WriteLine("All words are hidden!");
-        Console.WriteLine(verse.GetDisplayText());
+        verse.GetDisplayText();
+        Console.ResetColor();
         Console.WriteLine("\nPress Enter to return to menu...");
         Console.ReadLine();
     }
 }
 
-/// Main program class.
 class Program
 {
     static void Main()
@@ -180,7 +238,10 @@ class Program
         while (true)
         {
             Console.Clear();
-            Console.WriteLine("1. Add Verse\n2. Display Verses\n3. Start Memorization\n4. Exit");
+            Console.WriteLine("1. Add Scripture");
+            Console.WriteLine("2. Display Scripture");
+            Console.WriteLine("3. Start Memorization");
+            Console.WriteLine("4. Exit");
             Console.Write("Enter Your Choice: ");
             string choice = Console.ReadLine();
 
@@ -189,42 +250,24 @@ class Program
                 case "1":
                     Console.Write("Enter Reference: ");
                     string reference = Console.ReadLine();
-                    Console.Write("Enter Verse: ");
-                    string text = Console.ReadLine();
-                    collection.AddVerse(reference, text);
+                    
+                    Console.WriteLine("Enter the Verse (press Enter twice to finish):");
+                    string text = "";
+                    string line;
+                    while (!string.IsNullOrWhiteSpace(line = Console.ReadLine()))
+                    {
+                        text += line + " ";
+                    }
+
+                    collection.AddVerse(reference, text.Trim());
                     break;
                 case "2":
                     collection.DisplayVerses();
-                    Console.WriteLine("Press Enter to return...");
                     Console.ReadLine();
                     break;
                 case "3":
-                    if (collection.GetVerses().Count == 0)
-                    {
-                        Console.WriteLine("No verses available.");
-                        Console.ReadLine();
-                        break;
-                    }
-
-                    // Allow user to choose a verse
-                    Console.WriteLine("Select a verse:");
-                    for (int i = 0; i < collection.GetVerses().Count; i++)
-                    {
-                        Console.WriteLine($"{i + 1}. {collection.GetVerses()[i].Reference}");
-                    }
-
-                    Console.Write("Enter verse number: ");
-                    if (int.TryParse(Console.ReadLine(), out int index) && index > 0 && index <= collection.GetVerses().Count)
-                    {
-                        memorizationSession.Start(collection.GetVerses()[index - 1]);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Invalid selection.");
-                        Console.ReadLine();
-                    }
+                    memorizationSession.Start(collection.GetRandomVerse());
                     break;
-
                 case "4":
                     return;
             }
