@@ -1,23 +1,36 @@
 using System;
 using System.Collections.Generic;
 
+class Comment
+{
+    public string Username { get; }
+    public string Text { get; }
+
+    public Comment(string username, string text)
+    {
+        Username = username;
+        Text = text;
+    }
+}
+
 class Video
 {
-    public string Title { get; set; }
-    public string Author { get; set; }
-    public int Length { get; set; } // in seconds
-    private List<Comment> comments = new List<Comment>();
+    public string Title { get; }
+    public string Author { get; }
+    public int LengthInSeconds { get; }
+    private List<Comment> comments;
 
-    public Video(string title, string author, int length)
+    public Video(string title, string author, int lengthInSeconds)
     {
         Title = title;
         Author = author;
-        Length = length;
+        LengthInSeconds = lengthInSeconds;
+        comments = new List<Comment>();
     }
 
-    public void AddComment(string commenter, string text)
+    public void AddComment(string username, string text)
     {
-        comments.Add(new Comment(commenter, text));
+        comments.Add(new Comment(username, text));
     }
 
     public int GetCommentCount()
@@ -27,23 +40,17 @@ class Video
 
     public void DisplayVideoInfo()
     {
-        Console.WriteLine($"Title: {Title}, Author: {Author}, Length: {Length} sec, Comments: {GetCommentCount()}");
+        Console.WriteLine($"Title: {Title}");
+        Console.WriteLine($"Author: {Author}");
+        Console.WriteLine($"Length: {LengthInSeconds} seconds");
+        Console.WriteLine($"Number of Comments: {GetCommentCount()}");
+        Console.WriteLine("Comments:");
+        
         foreach (var comment in comments)
         {
-            Console.WriteLine($"{comment.Commenter}: {comment.Text}");
+            Console.WriteLine($"- {comment.Username}: {comment.Text}");
         }
-    }
-}
-
-class Comment
-{
-    public string Commenter { get; set; }
-    public string Text { get; set; }
-
-    public Comment(string commenter, string text)
-    {
-        Commenter = commenter;
-        Text = text;
+        Console.WriteLine();
     }
 }
 
@@ -51,23 +58,28 @@ class Program
 {
     static void Main()
     {
-        List<Video> videos = new List<Video>();
+        List<Video> videos = new List<Video>
+        {
+            new Video("Understanding OOP", "TechGuru", 600),
+            new Video("C# Basics for Beginners", "CodeMaster", 720),
+            new Video("Advanced C# Patterns", "DevExpert", 900)
+        };
 
-        Video v1 = new Video("Intro to C#", "John Doe", 300);
-        v1.AddComment("Alice", "Great tutorial!");
-        v1.AddComment("Bob", "Very informative.");
-        
-        Video v2 = new Video("OOP in C#", "Jane Smith", 450);
-        v2.AddComment("Charlie", "Thanks for explaining!");
-        v2.AddComment("Dana", "Super helpful.");
-        
-        videos.Add(v1);
-        videos.Add(v2);
+        videos[0].AddComment("Alice", "Great explanation!");
+        videos[0].AddComment("Bob", "Very clear and helpful.");
+        videos[0].AddComment("Charlie", "I finally understand OOP!");
+
+        videos[1].AddComment("Dave", "Nice tutorial!");
+        videos[1].AddComment("Eve", "This helped a lot, thanks!");
+        videos[1].AddComment("Frank", "Could you cover more examples?");
+
+        videos[2].AddComment("Grace", "I love design patterns!");
+        videos[2].AddComment("Heidi", "This was super informative.");
+        videos[2].AddComment("Ivan", "Do you have a part two?");
 
         foreach (var video in videos)
         {
             video.DisplayVideoInfo();
-            Console.WriteLine();
         }
     }
 }
