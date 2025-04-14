@@ -88,29 +88,29 @@ class GoalManager
     }
 
     private void LoadGoals()
+{
+    Console.Write("Enter filename: ");
+    string filename = Console.ReadLine();
+
+    if (!File.Exists(filename)) return;
+
+    _goals.Clear();
+    string[] lines = File.ReadAllLines(filename);
+    _score = int.Parse(lines[0]);
+
+    for (int i = 1; i < lines.Length; i++)
     {
-        Console.Write("Enter filename: ");
-        string filename = Console.ReadLine();
+        string[] parts = lines[i].Split("|");
+        string type = parts[0];
 
-        if (!File.Exists(filename)) return;
-
-        _goals.Clear();
-        string[] lines = File.ReadAllLines(filename);
-        _score = int.Parse(lines[0]);
-
-        for (int i = 1; i < lines.Length; i++)
-        {
-            string[] parts = lines[i].Split("|");
-            string type = parts[0];
-
-            if (type == "SimpleGoal")
-                _goals.Add(new SimpleGoal(parts[1], parts[2], int.Parse(parts[3])));
-            else if (type == "EternalGoal")
-                _goals.Add(new EternalGoal(parts[1], parts[2], int.Parse(parts[3])));
-            else if (type == "ChecklistGoal")
-                _goals.Add(new ChecklistGoal(parts[1], parts[2], int.Parse(parts[3]), int.Parse(parts[5]), int.Parse(parts[4])));
-        }
+        if (type == "SimpleGoal")
+            _goals.Add(new SimpleGoal(parts[1], parts[2], int.Parse(parts[3]), bool.Parse(parts[4])));
+        else if (type == "EternalGoal")
+            _goals.Add(new EternalGoal(parts[1], parts[2], int.Parse(parts[3])));
+        else if (type == "ChecklistGoal")
+            _goals.Add(new ChecklistGoal(parts[1], parts[2], int.Parse(parts[3]), int.Parse(parts[4]), int.Parse(parts[5])));
     }
+}
 
     private void RecordEvent()
     {

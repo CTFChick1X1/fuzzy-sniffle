@@ -8,3 +8,8 @@ class Program
         goalManager.Start();
     }
 }
+
+// Extra features:
+//Goal of the Day
+//Randomly choose one goal as a daily spotlight goal for bonus points.
+
